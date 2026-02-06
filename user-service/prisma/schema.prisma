@@ -1,0 +1,51 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  firstName String   @map("first_name")
+  lastName  String   @map("last_name")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  walletOutboxes WalletOutbox[]
+
+  @@map("users")
+}
+
+enum OutboxStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+enum EventType {
+  USER_CREATED
+  TRANSACTION_CREATED
+}
+
+model WalletOutbox {
+  id        String        @id @default(uuid())
+  userId    String        @map("user_id")
+  eventType EventType     @map("event_type")
+  status    OutboxStatus  @default(PENDING)
+  payload   Json
+  createdAt DateTime      @default(now()) @map("created_at")
+  updatedAt DateTime      @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("wallet_outbox")
+  @@index([status])
+  @@index([userId])
+  @@index([eventType])
+}
+

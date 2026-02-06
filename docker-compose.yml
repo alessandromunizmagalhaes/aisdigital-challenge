@@ -1,0 +1,104 @@
+services:
+  # PostgreSQL database for Wallet Microservice
+  wallet-db:
+    image: postgres:15-alpine
+    container_name: wallet-db
+    environment:
+      POSTGRES_DB: db_wallet
+      POSTGRES_USER: wallet_user
+      POSTGRES_PASSWORD: wallet_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - wallet_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wallet_user -d db_wallet"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Wallet Microservice (Port 3001)
+  wallet-service:
+    build:
+      context: ./wallet-service
+      dockerfile: Dockerfile
+    container_name: wallet-service
+    environment:
+      NODE_ENV: development
+      PORT: 3001
+      DATABASE_URL: postgresql://wallet_user:wallet_password@wallet-db:5432/db_wallet
+      JWT_SECRET: ILIACHALLENGE
+      # Database environment variables for docker-entrypoint.sh
+      DB_HOST: wallet-db
+      DB_PORT: 5432
+      DB_USER: wallet_user
+      DB_NAME: db_wallet
+      POSTGRES_DB: db_wallet
+      POSTGRES_USER: wallet_user
+      POSTGRES_PASSWORD: wallet_password
+    ports:
+      - "3001:3001"
+    depends_on:
+      wallet-db:
+        condition: service_healthy
+    volumes:
+      - ./wallet-service/src:/app/src
+      - /app/node_modules
+    restart: unless-stopped
+
+  # PostgreSQL database for Users Microservice
+  user-db:
+    image: postgres:15-alpine
+    container_name: user-db
+    environment:
+      POSTGRES_DB: userdb
+      POSTGRES_USER: user_user
+      POSTGRES_PASSWORD: user_password
+    ports:
+      - "5433:5432"
+    volumes:
+      - users_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user_user -d userdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  user-service:
+    build:
+      context: ./user-service
+      dockerfile: Dockerfile
+    container_name: user-service
+    environment:
+      NODE_ENV: development
+      PORT: 3002
+      DATABASE_URL: postgresql://user_user:user_password@user-db:5432/userdb
+      JWT_SECRET: ILIACHALLENGE
+      INTERNAL_JWT_SECRET: ILIACHALLENGE_INTERNAL
+      WALLET_SERVICE_URL: http://wallet-service:3001
+      DB_HOST: user-db
+      DB_PORT: 5432
+      DB_USER: user_user
+      DB_NAME: userdb
+      POSTGRES_DB: userdb
+      POSTGRES_USER: user_user
+      POSTGRES_PASSWORD: user_password
+    ports:
+      - "3002:3002"
+    depends_on:
+      user-db:
+        condition: service_healthy
+      wallet-service:
+        condition: service_started
+    volumes:
+      - ./user-service/src:/app/src
+      - /app/node_modules
+    restart: unless-stopped
+
+volumes:
+  wallet_db_data:
+  users_db_data:
+
+networks:
+  default:
+    name: ilia-challenge-network
